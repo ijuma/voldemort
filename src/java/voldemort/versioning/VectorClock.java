@@ -120,7 +120,6 @@ public class VectorClock implements Version, Serializable {
         CodedOutputStream out = CodedOutputStream.newInstance(serialized);
 
         try {
-            out.writeInt32NoTag(versions.size());
             out.writeInt64NoTag(timestamp);
             out.writeInt32NoTag(versions.size());
             for(ClockEntry v: versions) {
@@ -136,7 +135,6 @@ public class VectorClock implements Version, Serializable {
 
     public int sizeInBytes() {
         int size = 0;
-        size += CodedOutputStream.computeInt32SizeNoTag(versions.size());
         size += CodedOutputStream.computeInt64SizeNoTag(timestamp);
         size += CodedOutputStream.computeInt32SizeNoTag(versions.size());
         for(ClockEntry v: versions) {

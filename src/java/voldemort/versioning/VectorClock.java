@@ -16,6 +16,7 @@
 
 package voldemort.versioning;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,7 @@ import voldemort.annotations.concurrency.NotThreadsafe;
 import voldemort.utils.ByteUtils;
 
 import com.google.common.collect.Lists;
+import com.google.protobuf.CodedOutputStream;
 
 /**
  * A vector of the number of writes mastered by each node. The vector is stored
@@ -115,30 +117,33 @@ public class VectorClock implements Version, Serializable {
 
     public byte[] toBytes() {
         byte[] serialized = new byte[sizeInBytes()];
-        // write the number of versions
-        ByteUtils.writeShort(serialized, (short) versions.size(), 0);
-        // write the size of each version in bytes
-        byte versionSize = ByteUtils.numberOfBytesRequired(getMaxVersion());
-        serialized[2] = versionSize;
+        CodedOutputStream out = CodedOutputStream.newInstance(serialized);
 
-        int clockEntrySize = ByteUtils.SIZE_OF_SHORT + versionSize;
-        int start = 3;
-        for(ClockEntry v: versions) {
-            ByteUtils.writeShort(serialized, v.getNodeId(), start);
-            ByteUtils.writeBytes(serialized,
-                                 v.getVersion(),
-                                 start + ByteUtils.SIZE_OF_SHORT,
-                                 versionSize);
-            start += clockEntrySize;
+        try {
+            out.writeInt32NoTag(versions.size());
+            out.writeInt64NoTag(timestamp);
+            out.writeInt32NoTag(versions.size());
+            for(ClockEntry v: versions) {
+                out.writeInt32NoTag(v.getNodeId());
+                out.writeInt64NoTag(v.getVersion());
+            }
+        } catch(IOException e) {
+            /* Should not happen */
+            throw new RuntimeException(e);
         }
-        ByteUtils.writeLong(serialized, this.timestamp, start);
         return serialized;
     }
 
     public int sizeInBytes() {
-        byte versionSize = ByteUtils.numberOfBytesRequired(getMaxVersion());
-        return ByteUtils.SIZE_OF_SHORT + 1 + this.versions.size()
-               * (ByteUtils.SIZE_OF_SHORT + versionSize) + ByteUtils.SIZE_OF_LONG;
+        int size = 0;
+        size += CodedOutputStream.computeInt32SizeNoTag(versions.size());
+        size += CodedOutputStream.computeInt64SizeNoTag(timestamp);
+        size += CodedOutputStream.computeInt32SizeNoTag(versions.size());
+        for(ClockEntry v: versions) {
+            size += CodedOutputStream.computeInt32SizeNoTag(v.getNodeId());
+            size += CodedOutputStream.computeInt64SizeNoTag(v.getVersion());
+        }
+        return size;
     }
 
     /**
